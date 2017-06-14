@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+    	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+    	<meta name="viewport" content="width=device-width, initial-scale=1">
+    	<title>Joy</title>
+    	<!--css-->
+		<link href="//cdn.bootcss.com/dropzone/4.3.0/dropzone.css" rel="stylesheet">
+		<link href="stylesheets/style.css" rel="stylesheet">
+    	<!--js-->
+    	<script src="//cdn.bootcss.com/jquery/3.0.0-beta1/jquery.min.js"></script>
+		<script src="//cdn.bootcss.com/dropzone/4.3.0/dropzone.js"></script>
+		<script src="//cdn.bootcss.com/transparency/0.11.0/transparency.min.js"></script>
+		<script src="//cdn.bootcss.com/bootpag/1.0.7/jquery.bootpag.min.js"></script>
+		<script src="//cdn.bootcss.com/jquery.qrcode/1.0/jquery.qrcode.min.js"></script>
+	</head>
+	<body>
+		<div class='joy-container'>
+			<div class='joy-content text-center'>
+				<div class='joy-title'>
+					<span>JOY照片</span>
+					<div class='joy-user'>
+						<img src='pic/dot-head-sculpture-image.png'><span id='username'></span>
+					</div>
+				</div>
+				
+				<form action='/upload' id="my-awesome-dropzone" class="dropzone">
+		  			
+				</form>
+				<div class='btn-group'>
+					<button type="button" class='btn btn-choose'></button><button type="submit" class='btn btn-upload'></button>
+				</div>
+				<div class='joy-picblock'>
+					<div class='joy-picwall'>
+						<div class='joy-pictitle'>
+							我上传的照片
+						</div>
+						<div class='joy-pics'>
+							<div class='joy-pic'>
+								<div class='joy-picdate'></div>
+								<img class='joy-thumbnail' src = "" data-src=""><button type='button' class='btn btn-showcode'></button>
+							</div>
+						</div>
+					</div>
+					<!-- 页码 -->
+					<div id="pic-pagination"></div>
+				</div>
+			</div>
+			<!-- 二维码弹窗 -->
+			<div class='pop-window'>
+				<div class='pop-content'>
+					<div class='pop-title'>手机扫描获取照片</div>
+					<div style="color:#4d616f;font-size:24px;padding-top:10px;">可长按照片，保存到相册</div>
+					<div class="qrcode"></div>
+					<button type='button' class='btn btn-confirm'></button>
+				</div>
+			</div>
+			<div class='pop-cover'></div>
+		</div>
+		
+		<script type="text/javascript">
+			var totalpage,firstget=1;
+			getPics(1);
+			Dropzone.options.myAwesomeDropzone = {
+			  method: 'post',
+			  paramName: "filename", // The name that will be used to transfer the file
+			  maxFilesize: 5, // MB
+			  filesizeBase: 1024,
+			  autoProcessQueue: false,
+			  uploadMultiple: false,
+			  acceptedFiles: 'image/*',
+			  dictDefaultMessage: '请将图片拖到这里',
+			  addRemoveLinks: true,
+			  maxFiles:1,
+			  dictFileTooBig: "图片大小超出{{maxFilesize}}MB，请删除并重新选择",
+			  dictRemoveFile: "删除图片",
+			  dictMaxFilesExceeded: "只能选择一张图片",
+			  thumbnailWidth: "180",
+			  thumbnailHeight: "180",
+			  init: function() {
+				    var self = this;
+
+			        /* 点击上传按钮开始ajax上传 */
+			        var button = document.querySelector(".btn-upload");
+			        button.addEventListener("click", function(e) {
+			          e.preventDefault();
+			          e.stopPropagation();
+			          self.processQueue();
+			        });
+				    this.on("success", function(file,response) {
+				    	response = JSON.parse(response);
+		                if(response.success == "上传成功"){
+		                	this.removeFile(file);
+		                	getPics(1);
+		                	//显示二维码
+		                	showCode(response.imgurl);
+		                }else{
+		                	alert("上传失败");
+		                }
+		            });
+		            this.on("error", function(file, errorMessage){
+			            $(file.previewElement).find('[data-dz-errormessage]').html(errorMessage);
+			        });
+				},
+			  maxfilesexceeded: function(file,done){
+			  	this.removeFile(file);
+			  	alert("只能选择一张图片");
+			  }
+			};
+
+			/*页码*/
+			$('#pic-pagination').bootpag({
+			    total: totalpage,
+			    maxVisible: 5,
+			    next:"<img src='pic/icon-arrow-l.png'>",
+			    prev:"<img src='pic/icon-arrow-r.png'>"
+			}).on("page", function(event, num){
+				getPics(num);
+			});
+
+			$(".btn-choose").on('click',choose);
+
+			$(".joy-pics").on('click','.btn-showcode',function(){
+				var imgurl = $(this).siblings('img').attr('data-src');
+				showCode(imgurl);
+			});
+
+			$('.btn-confirm').on('click',function(){
+				$(this).closest('.pop-window').hide();
+				$('.pop-cover').css('opacity',0).hide();
+			});
+
+			// 获取图片墙
+			function getPics(p){
+				$.ajax({
+					type:'get',
+					url:'/p?p='+p,
+					datatype:'json',
+					success:function(data){
+						console.log(data);
+						if(firstget){
+							$("#username").html(data.posts[0].name);
+							firstget--;
+						}
+						
+						if(p == 1){
+							totalpage = data.totalpage;
+							$('#pic-pagination').bootpag({
+							    total: totalpage,
+							    maxVisible: 5
+							});
+						}
+						var directives = {
+						  "joy-picdate": {
+						  		text:function(params){
+						  			return this.time.second;
+						  		}
+						  },
+						  "joy-thumbnail": {
+						  	src:function(params){
+						  		return "/images/"+this.des_file_s;
+						  	},
+						  	'data-src':function(params){
+						  		return this.des_file;
+						  	}
+						  }
+						};
+						$('.joy-pics').render(data.posts,directives);
+					}
+				})
+			}
+
+			//选择图片
+			function choose(){
+				$('.dropzone').trigger('click');
+			}
+
+			//显示二维码
+			function showCode(imgurl){
+				
+				imgurl = (imgurl.indexOf('images/')>=0) ? imgurl : "images/"+imgurl;
+				$(".pop-content .qrcode").find('canvas').remove();
+				$(".pop-content .qrcode").qrcode({  
+				    width: 210, //宽度 
+				    height:210, //高度 
+				    text: "http://joy.dataguiding.com:3001/test1.html?imgsrc="+imgurl //任意内容 
+				}); 
+				$('.pop-cover').css('opacity',0.1).show();
+				$('.pop-window').show();
+			}
+		</script>
+	</body>
+</html>
